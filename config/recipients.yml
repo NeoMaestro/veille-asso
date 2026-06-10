@@ -1,0 +1,7 @@
+# Remplacez ces adresses par vos vrais destinataires.
+recipients:
+  - name: "Equipe de direction"
+    email: "direction@example.org"
+
+  - name: "Coordination jeunesse"
+    email: "jeunesse@example.org"

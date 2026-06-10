@@ -1,0 +1,28 @@
+mail:
+  subject: "Veille Asso Jeunesse - {date} - {count} nouveauté(s)"
+  intro: "Voici les informations récentes repérées dans les sources suivies pour les associations, ALSH et structures jeunesse."
+  send_empty_digest: false
+  reply_to: ""
+
+smtp:
+  use_tls: true
+  timeout_seconds: 30
+
+sources:
+  timeout_seconds: 20
+  user_agent: "VeilleAssoJeunesse/1.0"
+
+processing:
+  max_items_per_run: 60
+  include_uncategorized: false
+  mark_unmatched_as_seen: true
+
+ai:
+  max_items_per_run: 10
+  timeout_seconds: 30
+
+legal_notice: >-
+  Cette veille est générée automatiquement. Elle aide au repérage d’informations
+  réglementaires et pédagogiques. Elle ne remplace pas une analyse juridique,
+  institutionnelle ou professionnelle. Les décisions doivent être prises à partir
+  des sources officielles.

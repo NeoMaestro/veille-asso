@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ subject }}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #f5f7fa;
+        color: #1f2933;
+        font-family: Arial, Helvetica, sans-serif;
+        line-height: 1.5;
+      }
+
+      .wrapper {
+        width: 100%;
+        padding: 24px 0;
+      }
+
+      .container {
+        max-width: 760px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 1px solid #d9e2ec;
+      }
+
+      .header {
+        padding: 24px;
+        background: #14345f;
+        color: #ffffff;
+      }
+
+      .header h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        line-height: 1.25;
+      }
+
+      .header p {
+        margin: 0;
+        color: #dbeafe;
+      }
+
+      .content {
+        padding: 24px;
+      }
+
+      .intro {
+        margin: 0 0 20px;
+        font-size: 15px;
+      }
+
+      .category {
+        margin-top: 28px;
+      }
+
+      .category h2 {
+        margin: 0 0 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #d9e2ec;
+        color: #14345f;
+        font-size: 18px;
+      }
+
+      .item {
+        padding: 16px 0;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .item:last-child {
+        border-bottom: 0;
+      }
+
+      .item h3 {
+        margin: 0 0 6px;
+        font-size: 17px;
+        line-height: 1.35;
+      }
+
+      .item h3 a {
+        color: #0f4c81;
+        text-decoration: none;
+      }
+
+      .meta {
+        margin: 0 0 10px;
+        color: #52616b;
+        font-size: 13px;
+      }
+
+      .summary {
+        margin: 0 0 10px;
+      }
+
+      .keywords {
+        margin: 8px 0;
+        color: #334e68;
+        font-size: 13px;
+      }
+
+      .ai {
+        margin-top: 12px;
+        padding: 12px;
+        background: #f0f7ff;
+        border-left: 4px solid #2f80ed;
+      }
+
+      .ai h4 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        color: #14345f;
+      }
+
+      .ai p {
+        margin: 6px 0;
+        font-size: 14px;
+      }
+
+      .link {
+        margin-top: 10px;
+      }
+
+      .link a {
+        color: #0f4c81;
+        font-weight: bold;
+      }
+
+      .empty {
+        padding: 16px;
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+      }
+
+      .notice {
+        margin-top: 28px;
+        padding: 14px;
+        background: #fff8e5;
+        border: 1px solid #f5d27a;
+        color: #594214;
+        font-size: 13px;
+      }
+
+      .footer {
+        padding: 16px 24px;
+        background: #eef2f7;
+        color: #52616b;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="container">
+        <div class="header">
+          <h1>{{ title }}</h1>
+          <p>{{ total_items }} nouveauté(s) repérée(s) - généré le {{ generated_at }}</p>
+        </div>
+
+        <div class="content">
+          {% if intro %}
+            <p class="intro">{{ intro }}</p>
+          {% endif %}
+
+          {% if total_items == 0 %}
+            <div class="empty">
+              Aucune nouveauté correspondant aux mots-clés n'a été repérée pendant cette exécution.
+            </div>
+          {% endif %}
+
+          {% for category_key, group in grouped_items.items() %}
+            <section class="category">
+              <h2>{{ group.label }}</h2>
+
+              {% for item in group.items %}
+                <article class="item">
+                  <h3>
+                    {% if item.link %}
+                      <a href="{{ item.link }}">{{ item.title }}</a>
+                    {% else %}
+                      {{ item.title }}
+                    {% endif %}
+                  </h3>
+
+                  <p class="meta">
+                    Source : {{ item.source }} -
+                    Date : {{ item.published | format_date }}
+                  </p>
+
+                  {% if item.summary %}
+                    <p class="summary">{{ item.summary | excerpt(500) }}</p>
+                  {% endif %}
+
+                  <p class="keywords">
+                    Mots-clés détectés :
+                    {% if item.keywords_detected %}
+                      {{ item.keywords_detected | join(", ") }}
+                    {% else %}
+                      aucun mot-clé spécifique
+                    {% endif %}
+                  </p>
+
+                  {% if item.ai_summary %}
+                    <div class="ai">
+                      <h4>Synthèse IA</h4>
+                      {% if item.ai_summary.resume %}
+                        <p><strong>Résumé :</strong> {{ item.ai_summary.resume }}</p>
+                      {% endif %}
+                      {% if item.ai_summary.interet_association_alsh %}
+                        <p><strong>Intérêt association / ALSH :</strong> {{ item.ai_summary.interet_association_alsh }}</p>
+                      {% endif %}
+                      {% if item.ai_summary.public_concerne %}
+                        <p><strong>Public concerné :</strong> {{ item.ai_summary.public_concerne }}</p>
+                      {% endif %}
+                      {% if item.ai_summary.niveau_attention %}
+                        <p><strong>Niveau d’attention :</strong> {{ item.ai_summary.niveau_attention }}</p>
+                      {% endif %}
+                      {% if item.ai_summary.action_conseillee %}
+                        <p><strong>Action conseillée :</strong> {{ item.ai_summary.action_conseillee }}</p>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+
+                  {% if item.link %}
+                    <p class="link"><a href="{{ item.link }}">Lire la source officielle ou l'article</a></p>
+                  {% endif %}
+                </article>
+              {% endfor %}
+            </section>
+          {% endfor %}
+
+          <div class="notice">
+            {{ legal_notice }}
+          </div>
+        </div>
+
+        <div class="footer">
+          Veille envoyée automatiquement par Veille Asso Jeunesse.
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

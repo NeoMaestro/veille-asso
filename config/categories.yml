@@ -1,0 +1,118 @@
+# Les categories sont parcourues dans l'ordre.
+# Un element est classe dans la premiere categorie dont un mot-cle est detecte.
+default_category:
+  key: "autres"
+  label: "Autres informations utiles"
+
+categories:
+  reglementation:
+    label: "Réglementation et obligations"
+    keywords:
+      - "decret"
+      - "décret"
+      - "arrete"
+      - "arrêté"
+      - "circulaire"
+      - "instruction"
+      - "loi"
+      - "reglementation"
+      - "réglementation"
+      - "obligation"
+      - "agrement"
+      - "agrément"
+      - "declaration"
+      - "déclaration"
+      - "controle"
+      - "contrôle"
+      - "accueil collectif de mineurs"
+      - "ACM"
+      - "ALSH"
+      - "SDJES"
+      - "DRAJES"
+
+  enfance_jeunesse:
+    label: "Enfance, jeunesse et accueils"
+    keywords:
+      - "jeunesse"
+      - "enfance"
+      - "mineur"
+      - "mineurs"
+      - "periscolaire"
+      - "périscolaire"
+      - "extrascolaire"
+      - "accueil de loisirs"
+      - "colonie"
+      - "sejour"
+      - "séjour"
+      - "animation"
+      - "BAFA"
+      - "BAFD"
+
+  pedagogie:
+    label: "Ressources pédagogiques"
+    keywords:
+      - "pedagogie"
+      - "pédagogie"
+      - "education populaire"
+      - "éducation populaire"
+      - "ressource"
+      - "outil pédagogique"
+      - "formation"
+      - "citoyennete"
+      - "citoyenneté"
+      - "participation"
+      - "mediation"
+      - "médiation"
+
+  securite_prevention:
+    label: "Sécurité, prévention et protection"
+    keywords:
+      - "securite"
+      - "sécurité"
+      - "prevention"
+      - "prévention"
+      - "protection de l'enfance"
+      - "harcelement"
+      - "harcèlement"
+      - "violence"
+      - "sante"
+      - "santé"
+      - "accident"
+      - "urgence"
+      - "signalement"
+
+  inclusion_laicite:
+    label: "Inclusion, laïcité et égalité"
+    keywords:
+      - "inclusion"
+      - "handicap"
+      - "accessibilite"
+      - "accessibilité"
+      - "laicite"
+      - "laïcité"
+      - "egalite"
+      - "égalité"
+      - "discrimination"
+      - "mixite"
+      - "mixité"
+      - "genre"
+
+  vie_associative_financement:
+    label: "Vie associative et financements"
+    keywords:
+      - "association"
+      - "associations"
+      - "benevole"
+      - "bénévole"
+      - "benevolat"
+      - "bénévolat"
+      - "subvention"
+      - "appel a projets"
+      - "appel à projets"
+      - "FDVA"
+      - "financement"
+      - "CAF"
+      - "fonds"
+      - "don"
+      - "mecenat"
+      - "mécénat"

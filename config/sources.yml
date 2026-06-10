@@ -1,0 +1,27 @@
+# Flux RSS/Atom a surveiller.
+# Vous pouvez ajouter vos propres sources ou desactiver une source avec enabled: false.
+sources:
+  - name: "Associations.gouv.fr"
+    url: "https://www.associations.gouv.fr/spip.php?page=backend"
+    enabled: true
+    description: "Actualites institutionnelles utiles aux associations."
+
+  - name: "INJEP"
+    url: "https://injep.fr/feed/"
+    enabled: true
+    description: "Jeunesse, education populaire, vie associative."
+
+  - name: "Vie-publique.fr"
+    url: "https://www.vie-publique.fr/rss.xml"
+    enabled: true
+    description: "Actualites publiques, lois, rapports et dossiers."
+
+  - name: "Education.gouv.fr"
+    url: "https://www.education.gouv.fr/rss.xml"
+    enabled: true
+    description: "Actualites du ministere de l'Education nationale."
+
+  - name: "Exemple de source locale"
+    url: "https://example.org/feed.xml"
+    enabled: false
+    description: "Remplacez cette entree par le flux de votre CAF, mairie, SDJES, DRAJES ou federation."
