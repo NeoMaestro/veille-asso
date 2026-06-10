@@ -139,6 +139,32 @@ python src/main.py
 
 Le mode `--dry-run` prepare la veille et affiche un resume sans envoyer de mail ni modifier `data/seen_items.json`.
 
+## Interface graphique locale
+
+Une petite interface graphique permet de modifier la configuration sans ouvrir les fichiers YAML a la main.
+
+Elle permet de :
+
+- ajouter, modifier, supprimer, activer ou desactiver les sources RSS/Atom ;
+- modifier les destinataires ;
+- modifier les categories et mots-cles ;
+- ajuster quelques reglages du mail et du filtrage ;
+- lancer un test `dry-run` sans envoyer de mail.
+
+Lancement :
+
+```bash
+python src/gui.py
+```
+
+Sous Windows PowerShell :
+
+```powershell
+python src/gui.py
+```
+
+L'interface modifie les memes fichiers que l'automatisation GitHub Actions dans `config/`. Apres modification locale, il faut commit et push les changements pour les publier sur GitHub.
+
 ## Changer la frequence
 
 La frequence se modifie dans `.github/workflows/veille.yml`.
