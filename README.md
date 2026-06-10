@@ -141,7 +141,7 @@ Le mode `--dry-run` prepare la veille et affiche un resume sans envoyer de mail 
 
 ## Interface graphique locale
 
-Une petite interface graphique permet de modifier la configuration sans ouvrir les fichiers YAML a la main.
+Une interface graphique locale permet de modifier la configuration sans ouvrir les fichiers YAML a la main.
 
 Elle permet de :
 
@@ -149,7 +149,13 @@ Elle permet de :
 - modifier les destinataires ;
 - modifier les categories et mots-cles ;
 - ajuster quelques reglages du mail et du filtrage ;
-- lancer un test `dry-run` sans envoyer de mail.
+- configurer le SMTP local dans `.env` ;
+- configurer une cle IA optionnelle dans `.env` ;
+- tester la connexion SMTP ;
+- envoyer un mail test ;
+- tester la configuration IA ;
+- afficher la liste des secrets GitHub Actions a creer ;
+- lancer un test `dry-run` avec ou sans IA, sans envoyer de mail.
 
 Lancement :
 
@@ -163,7 +169,56 @@ Sous Windows PowerShell :
 python src/gui.py
 ```
 
-L'interface modifie les memes fichiers que l'automatisation GitHub Actions dans `config/`. Apres modification locale, il faut commit et push les changements pour les publier sur GitHub.
+L'interface modifie deux types de fichiers :
+
+- `config/*.yml` pour les informations publiques du projet : sources, destinataires, categories et reglages ;
+- `.env` pour les informations sensibles locales : SMTP, mot de passe SMTP et cle API IA.
+
+Le fichier `.env` est ignore par Git et ne doit jamais etre envoye sur GitHub.
+
+Apres modification des fichiers `config/*.yml`, il faut commit et push les changements pour les publier sur GitHub. Les valeurs de `.env`, elles, servent seulement aux tests locaux.
+
+### Tester SMTP / Tester IA
+
+Dans l'interface :
+
+1. Ouvrez l'onglet `SMTP & expediteur`.
+2. Renseignez le serveur SMTP, le port, l'identifiant, le mot de passe et l'adresse expediteur.
+3. Cliquez sur `Tester SMTP` pour verifier la connexion.
+4. Cliquez sur `Envoyer un mail test` pour verifier l'envoi reel.
+
+Pour l'IA :
+
+1. Ouvrez l'onglet `IA optionnelle`.
+2. Activez l'IA seulement si vous voulez ajouter des syntheses automatiques.
+3. Choisissez le fournisseur : OpenAI, OpenRouter, Groq, Mistral compatible ou Custom.
+4. Renseignez `AI_API_KEY`, `AI_MODEL` et, pour un fournisseur custom, `AI_BASE_URL`.
+5. Cliquez sur `Tester la configuration IA`.
+
+Si l'IA n'est pas configuree, la veille fonctionne normalement sans synthese IA.
+
+### Secrets GitHub depuis l'interface
+
+L'onglet `Mise en route` affiche la liste des secrets a creer dans GitHub Actions.
+
+L'interface ne les envoie pas automatiquement a GitHub. Il faut les ajouter manuellement dans :
+
+`Settings` > `Secrets and variables` > `Actions`
+
+Secrets SMTP obligatoires :
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASSWORD`
+- `MAIL_FROM`
+
+Secrets IA optionnels :
+
+- `AI_PROVIDER`
+- `AI_API_KEY`
+- `AI_MODEL`
+- `AI_BASE_URL`
 
 ## Changer la frequence
 
