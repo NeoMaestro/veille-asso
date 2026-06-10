@@ -151,6 +151,7 @@ Elle permet de :
 - ajuster quelques reglages du mail et du filtrage ;
 - configurer le SMTP local dans `.env` ;
 - configurer une cle IA optionnelle dans `.env` ;
+- basculer entre un theme clair contraste et un dark mode ;
 - tester la connexion SMTP ;
 - envoyer un mail test ;
 - tester la configuration IA ;
@@ -176,7 +177,20 @@ L'interface modifie deux types de fichiers :
 
 Le fichier `.env` est ignore par Git et ne doit jamais etre envoye sur GitHub.
 
+Le choix du theme graphique est memorise localement dans `.gui_settings.json`. Ce fichier est ignore par Git et ne contient pas de secret.
+
 Apres modification des fichiers `config/*.yml`, il faut commit et push les changements pour les publier sur GitHub. Les valeurs de `.env`, elles, servent seulement aux tests locaux.
+
+### Lisibilite et dark mode
+
+Le bouton en haut a droite permet de passer du theme clair au dark mode. Le choix est conserve sur le poste local pour les prochains lancements.
+
+Les champs sensibles restent masques par defaut :
+
+- `SMTP_PASSWORD` dans l'onglet `SMTP & expediteur` ;
+- `AI_API_KEY` dans l'onglet `IA optionnelle`.
+
+Vous pouvez les afficher temporairement avec les boutons `Afficher le mot de passe` ou `Afficher la cle API`. Ils sont remasques automatiquement apres un enregistrement, un test SMTP, un test IA ou un changement de fournisseur IA.
 
 ### Tester SMTP / Tester IA
 

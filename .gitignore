@@ -1,4 +1,5 @@
 .env
+.gui_settings.json
 .venv/
 venv/
 __pycache__/

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import smtplib
 import ssl
@@ -27,6 +28,41 @@ AI_PROVIDERS = {
     "Custom compatible OpenAI": "custom",
 }
 
+THEMES = {
+    "light": {
+        "bg": "#f4f7fb",
+        "panel": "#ffffff",
+        "field": "#ffffff",
+        "field_alt": "#f8fafc",
+        "text": "#0f172a",
+        "muted": "#475569",
+        "border": "#94a3b8",
+        "button": "#e2e8f0",
+        "button_active": "#cbd5e1",
+        "accent": "#1d4ed8",
+        "accent_text": "#ffffff",
+        "selection": "#bfdbfe",
+        "ok": "#166534",
+        "warning": "#b45309",
+    },
+    "dark": {
+        "bg": "#0f172a",
+        "panel": "#111827",
+        "field": "#1f2937",
+        "field_alt": "#172033",
+        "text": "#f8fafc",
+        "muted": "#cbd5e1",
+        "border": "#475569",
+        "button": "#334155",
+        "button_active": "#475569",
+        "accent": "#60a5fa",
+        "accent_text": "#0f172a",
+        "selection": "#1d4ed8",
+        "ok": "#86efac",
+        "warning": "#fbbf24",
+    },
+}
+
 
 class VeilleGui(tk.Tk):
     def __init__(self) -> None:
@@ -41,6 +77,7 @@ class VeilleGui(tk.Tk):
         self.settings_path = ROOT_DIR / "config" / "settings.yml"
         self.env_path = ROOT_DIR / ".env"
         self.env_example_path = ROOT_DIR / ".env.example"
+        self.gui_settings_path = ROOT_DIR / ".gui_settings.json"
         ensure_env_file(self.env_path, self.env_example_path)
 
         self.sources_data = self._load_yaml(self.sources_path)
@@ -48,8 +85,21 @@ class VeilleGui(tk.Tk):
         self.categories_data = self._load_yaml(self.categories_path)
         self.settings_data = self._load_yaml(self.settings_path)
         self.env_values = read_env_values(self.env_path)
+        self.gui_settings = self.load_gui_settings()
+        self.theme_name = self.gui_settings.get("theme", "light")
+        if self.theme_name not in THEMES:
+            self.theme_name = "light"
+        self.colors = THEMES[self.theme_name]
+        self.style = ttk.Style(self)
+        self.text_widgets: list[tk.Text] = []
+        self.list_widgets: list[tk.Listbox] = []
+        self.tree_widgets: list[ttk.Treeview] = []
+        self.help_labels: list[ttk.Label] = []
+        self.smtp_secret_visible = False
+        self.ai_secret_visible = False
 
         self._build_ui()
+        self.apply_theme(self.theme_name)
         self.refresh_sources()
         self.refresh_recipients()
         self.refresh_categories()
@@ -58,26 +108,39 @@ class VeilleGui(tk.Tk):
         self.refresh_setup_status()
 
     def _build_ui(self) -> None:
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, padx=10, pady=10)
+        self.top_bar = ttk.Frame(self, style="Top.TFrame", padding=(12, 10))
+        self.top_bar.pack(fill="x")
+        self.title_label = ttk.Label(self.top_bar, text="Veille Asso Jeunesse", style="Title.TLabel")
+        self.title_label.pack(side="left")
+        self.secret_notice_label = ttk.Label(
+            self.top_bar,
+            text="Secrets locaux dans .env - jamais envoyes sur GitHub",
+            style="TopMuted.TLabel",
+        )
+        self.secret_notice_label.pack(side="left", padx=(18, 0))
+        self.theme_button = ttk.Button(self.top_bar, command=self.toggle_theme)
+        self.theme_button.pack(side="right")
 
-        self.sources_tab = ttk.Frame(notebook, padding=10)
-        self.recipients_tab = ttk.Frame(notebook, padding=10)
-        self.categories_tab = ttk.Frame(notebook, padding=10)
-        self.settings_tab = ttk.Frame(notebook, padding=10)
-        self.smtp_tab = ttk.Frame(notebook, padding=10)
-        self.ai_tab = ttk.Frame(notebook, padding=10)
-        self.setup_tab = ttk.Frame(notebook, padding=10)
-        self.test_tab = ttk.Frame(notebook, padding=10)
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill="both", expand=True, padx=12, pady=12)
 
-        notebook.add(self.sources_tab, text="Sources")
-        notebook.add(self.recipients_tab, text="Destinataires")
-        notebook.add(self.categories_tab, text="Categories")
-        notebook.add(self.settings_tab, text="Reglages")
-        notebook.add(self.smtp_tab, text="SMTP & expediteur")
-        notebook.add(self.ai_tab, text="IA optionnelle")
-        notebook.add(self.setup_tab, text="Mise en route")
-        notebook.add(self.test_tab, text="Tester")
+        self.sources_tab = ttk.Frame(self.notebook, padding=12)
+        self.recipients_tab = ttk.Frame(self.notebook, padding=12)
+        self.categories_tab = ttk.Frame(self.notebook, padding=12)
+        self.settings_tab = ttk.Frame(self.notebook, padding=12)
+        self.smtp_tab = ttk.Frame(self.notebook, padding=12)
+        self.ai_tab = ttk.Frame(self.notebook, padding=12)
+        self.setup_tab = ttk.Frame(self.notebook, padding=12)
+        self.test_tab = ttk.Frame(self.notebook, padding=12)
+
+        self.notebook.add(self.sources_tab, text="Sources")
+        self.notebook.add(self.recipients_tab, text="Destinataires")
+        self.notebook.add(self.categories_tab, text="Categories")
+        self.notebook.add(self.settings_tab, text="Reglages")
+        self.notebook.add(self.smtp_tab, text="SMTP & expediteur")
+        self.notebook.add(self.ai_tab, text="IA optionnelle")
+        self.notebook.add(self.setup_tab, text="Mise en route")
+        self.notebook.add(self.test_tab, text="Tester")
 
         self._build_sources_tab()
         self._build_recipients_tab()
@@ -99,6 +162,7 @@ class VeilleGui(tk.Tk):
         ):
             self.sources_tree.heading(column, text=label)
             self.sources_tree.column(column, width=width, anchor="center" if column == "enabled" else "w")
+        self.tree_widgets.append(self.sources_tree)
         self.sources_tree.pack(fill="both", expand=True)
         self.sources_tree.bind("<Double-1>", lambda _event: self.edit_source())
 
@@ -116,6 +180,7 @@ class VeilleGui(tk.Tk):
         self.recipients_tree.heading("email", text="Email")
         self.recipients_tree.column("name", width=320)
         self.recipients_tree.column("email", width=520)
+        self.tree_widgets.append(self.recipients_tree)
         self.recipients_tree.pack(fill="both", expand=True)
         self.recipients_tree.bind("<Double-1>", lambda _event: self.edit_recipient())
 
@@ -134,6 +199,7 @@ class VeilleGui(tk.Tk):
         left.pack(side="left", fill="y", padx=(0, 10))
         ttk.Label(left, text="Categories").pack(anchor="w")
         self.categories_list = tk.Listbox(left, width=34, height=22, exportselection=False)
+        self.list_widgets.append(self.categories_list)
         self.categories_list.pack(fill="y", expand=True, pady=(6, 0))
         self.categories_list.bind("<<ListboxSelect>>", lambda _event: self.load_selected_category())
 
@@ -148,6 +214,7 @@ class VeilleGui(tk.Tk):
         ttk.Entry(right, textvariable=self.category_label_var).pack(fill="x", pady=(2, 8))
         ttk.Label(right, text="Mots-cles, un par ligne").pack(anchor="w")
         self.category_keywords_text = tk.Text(right, height=16, wrap="word")
+        self.text_widgets.append(self.category_keywords_text)
         self.category_keywords_text.pack(fill="both", expand=True, pady=(2, 0))
 
         buttons = ttk.Frame(self.categories_tab)
@@ -170,6 +237,7 @@ class VeilleGui(tk.Tk):
 
         ttk.Label(self.settings_tab, text="Introduction").pack(anchor="w")
         self.intro_text = tk.Text(self.settings_tab, height=4, wrap="word")
+        self.text_widgets.append(self.intro_text)
         self.intro_text.pack(fill="x", pady=(2, 10))
 
         ttk.Checkbutton(self.settings_tab, text="Envoyer un mail meme sans resultat", variable=self.send_empty_var).pack(anchor="w")
@@ -185,6 +253,7 @@ class VeilleGui(tk.Tk):
 
         ttk.Label(self.settings_tab, text="Mention de prudence juridique").pack(anchor="w")
         self.legal_notice_text = tk.Text(self.settings_tab, height=6, wrap="word")
+        self.text_widgets.append(self.legal_notice_text)
         self.legal_notice_text.pack(fill="both", expand=True, pady=(2, 10))
 
         ttk.Button(self.settings_tab, text="Enregistrer", command=self.save_settings).pack(anchor="e")
@@ -198,7 +267,6 @@ class VeilleGui(tk.Tk):
         self.reply_to_var = tk.StringVar()
         self.smtp_tls_var = tk.BooleanVar()
         self.smtp_timeout_var = tk.StringVar()
-        self.show_smtp_password_var = tk.BooleanVar(value=False)
 
         form = ttk.Frame(self.smtp_tab)
         form.pack(fill="x")
@@ -211,12 +279,12 @@ class VeilleGui(tk.Tk):
         self._entry_row(form, "Timeout secondes", self.smtp_timeout_var, 6, width=12)
 
         ttk.Checkbutton(form, text="Utiliser TLS/STARTTLS", variable=self.smtp_tls_var).grid(row=7, column=1, sticky="w", pady=4)
-        ttk.Checkbutton(
+        self.smtp_reveal_button = ttk.Button(
             form,
             text="Afficher le mot de passe",
-            variable=self.show_smtp_password_var,
             command=self.toggle_smtp_password_visibility,
-        ).grid(row=8, column=1, sticky="w", pady=4)
+        )
+        self.smtp_reveal_button.grid(row=8, column=1, sticky="w", pady=4)
 
         buttons = ttk.Frame(self.smtp_tab)
         buttons.pack(fill="x", pady=(14, 0))
@@ -224,11 +292,13 @@ class VeilleGui(tk.Tk):
         ttk.Button(buttons, text="Tester SMTP", command=self.test_smtp).pack(side="left", padx=6)
         ttk.Button(buttons, text="Envoyer un mail test", command=self.send_test_email).pack(side="left", padx=6)
 
-        ttk.Label(
+        self.smtp_help_label = ttk.Label(
             self.smtp_tab,
             text=".env reste local sur ce PC et ne doit pas etre envoye sur GitHub.",
-            foreground="#555555",
-        ).pack(anchor="w", pady=(16, 0))
+            style="Muted.TLabel",
+        )
+        self.help_labels.append(self.smtp_help_label)
+        self.smtp_help_label.pack(anchor="w", pady=(16, 0))
 
     def _build_ai_tab(self) -> None:
         self.ai_enabled_var = tk.BooleanVar()
@@ -236,7 +306,6 @@ class VeilleGui(tk.Tk):
         self.ai_api_key_var = tk.StringVar()
         self.ai_model_var = tk.StringVar()
         self.ai_base_url_var = tk.StringVar()
-        self.show_ai_key_var = tk.BooleanVar(value=False)
 
         form = ttk.Frame(self.ai_tab)
         form.pack(fill="x")
@@ -249,14 +318,15 @@ class VeilleGui(tk.Tk):
         self._entry_row(form, "Modele IA", self.ai_model_var, 3)
         self._entry_row(form, "AI_BASE_URL", self.ai_base_url_var, 4)
 
-        ttk.Checkbutton(
+        self.ai_reveal_button = ttk.Button(
             form,
             text="Afficher la cle API",
-            variable=self.show_ai_key_var,
             command=self.toggle_ai_key_visibility,
-        ).grid(row=5, column=1, sticky="w", pady=4)
+        )
+        self.ai_reveal_button.grid(row=5, column=1, sticky="w", pady=4)
 
-        self.ai_help_label = ttk.Label(self.ai_tab, text="", foreground="#555555", wraplength=900)
+        self.ai_help_label = ttk.Label(self.ai_tab, text="", style="Muted.TLabel", wraplength=900)
+        self.help_labels.append(self.ai_help_label)
         self.ai_help_label.pack(anchor="w", pady=(10, 0))
 
         buttons = ttk.Frame(self.ai_tab)
@@ -272,11 +342,13 @@ class VeilleGui(tk.Tk):
 
         ttk.Label(left, text="Etat de configuration").pack(anchor="w")
         self.setup_status_text = tk.Text(left, height=22, wrap="word")
+        self.text_widgets.append(self.setup_status_text)
         self.setup_status_text.pack(fill="both", expand=True, pady=(6, 10))
         ttk.Button(left, text="Rafraichir l'etat", command=self.refresh_setup_status).pack(anchor="w")
 
         ttk.Label(right, text="Secrets GitHub Actions a recopier").pack(anchor="w")
         self.github_secrets_text = tk.Text(right, height=22, wrap="word")
+        self.text_widgets.append(self.github_secrets_text)
         self.github_secrets_text.pack(fill="both", expand=True, pady=(6, 10))
         buttons = ttk.Frame(right)
         buttons.pack(fill="x")
@@ -289,9 +361,11 @@ class VeilleGui(tk.Tk):
         ttk.Button(buttons, text="Dry-run sans IA", command=lambda: self.run_dry_run(use_ai=False)).pack(side="left", padx=(0, 6))
         ttk.Button(buttons, text="Dry-run avec IA si configuree", command=lambda: self.run_dry_run(use_ai=True)).pack(side="left", padx=6)
         ttk.Button(buttons, text="Rafraichir les prerequis", command=self.refresh_test_prerequisites).pack(side="left", padx=6)
-        self.test_prerequisites_label = ttk.Label(self.test_tab, text="", foreground="#555555", wraplength=980)
+        self.test_prerequisites_label = ttk.Label(self.test_tab, text="", style="Muted.TLabel", wraplength=980)
+        self.help_labels.append(self.test_prerequisites_label)
         self.test_prerequisites_label.pack(anchor="w", pady=(0, 8))
         self.test_output = tk.Text(self.test_tab, height=24, wrap="word")
+        self.text_widgets.append(self.test_output)
         self.test_output.pack(fill="both", expand=True)
 
     def refresh_sources(self) -> None:
@@ -504,6 +578,7 @@ class VeilleGui(tk.Tk):
         self.ai_model_var.set(self.env_values.get("AI_MODEL", ""))
         self.ai_base_url_var.set(self.env_values.get("AI_BASE_URL", ""))
         self.on_ai_provider_change()
+        self.hide_secrets()
         self.refresh_test_prerequisites()
 
     def save_env_form(self) -> bool:
@@ -530,6 +605,7 @@ class VeilleGui(tk.Tk):
         if not self.save_settings(show_message=False):
             return False
         self._apply_env_to_process()
+        self.hide_secrets()
         self.refresh_setup_status()
         messagebox.showinfo("Enregistre", ".env local enregistre. Il reste ignore par Git.")
         return True
@@ -541,8 +617,10 @@ class VeilleGui(tk.Tk):
             config = get_smtp_config(self.settings_data)
             self._open_smtp_session(config).quit()
         except Exception as exc:  # noqa: BLE001
+            self.hide_secrets()
             messagebox.showerror("SMTP en erreur", f"Connexion SMTP impossible :\n{exc}")
             return
+        self.hide_secrets()
         messagebox.showinfo("SMTP OK", "La connexion SMTP et l'authentification ont reussi.")
 
     def send_test_email(self) -> None:
@@ -563,8 +641,10 @@ class VeilleGui(tk.Tk):
                 config,
             )
         except Exception as exc:  # noqa: BLE001
+            self.hide_secrets()
             messagebox.showerror("Mail test en erreur", f"Le mail test n'a pas pu etre envoye :\n{exc}")
             return
+        self.hide_secrets()
         messagebox.showinfo("Mail test envoye", f"Mail test envoye a {recipient}.")
 
     def test_ai(self) -> None:
@@ -588,8 +668,10 @@ class VeilleGui(tk.Tk):
                 }
             )
         except Exception as exc:  # noqa: BLE001
+            self.hide_secrets()
             messagebox.showerror("IA en erreur", f"Le test IA a echoue :\n{exc}")
             return
+        self.hide_secrets()
         messagebox.showinfo("IA OK", "La configuration IA a repondu.\n\nResume : " + result.get("resume", "OK"))
 
     def refresh_setup_status(self) -> None:
@@ -606,14 +688,16 @@ class VeilleGui(tk.Tk):
             self._status_line(bool(active_sources), f"{len(active_sources)} source(s) active(s)"),
             self._status_line(bool(recipients), f"{len(recipients)} destinataire(s) configure(s)"),
             self._status_line(smtp_ok, "SMTP local renseigne" if smtp_ok else "SMTP local incomplet"),
+            self._status_line(bool(self.env_values.get("SMTP_PASSWORD")), "Mot de passe SMTP renseigne" if self.env_values.get("SMTP_PASSWORD") else "Mot de passe SMTP absent"),
             self._status_line(seen_exists, "Fichier data/seen_items.json present"),
-            self._status_line(ai_enabled, "IA optionnelle activee localement" if ai_enabled else "IA optionnelle desactivee"),
+            self._status_line(ai_enabled, "Cle IA renseignee et IA activee" if ai_enabled else "IA optionnelle desactivee ou cle absente"),
             "",
             "Rappel : les secrets du fichier .env sont uniquement locaux.",
             "Pour GitHub Actions, creez les secrets dans Settings > Secrets and variables > Actions.",
         ]
         self.setup_status_text.delete("1.0", tk.END)
         self.setup_status_text.insert("1.0", "\n".join(lines))
+        self._color_status_lines(self.setup_status_text)
 
         self.github_secrets_text.delete("1.0", tk.END)
         self.github_secrets_text.insert("1.0", build_secret_checklist(self.env_values))
@@ -663,9 +747,11 @@ class VeilleGui(tk.Tk):
             self.ai_provider_label_var.set("OpenAI")
         if not self.ai_enabled_var.get():
             self.ai_provider_label_var.set("Sans IA")
+        self.hide_secrets()
         self.on_ai_provider_change()
 
     def on_ai_provider_change(self) -> None:
+        self.hide_secrets()
         provider = self._selected_ai_provider()
         if provider:
             self.ai_enabled_var.set(True)
@@ -684,10 +770,124 @@ class VeilleGui(tk.Tk):
         self.ai_help_label.config(text=help_text)
 
     def toggle_smtp_password_visibility(self) -> None:
-        self.smtp_password_entry.config(show="" if self.show_smtp_password_var.get() else "*")
+        self.smtp_secret_visible = not self.smtp_secret_visible
+        self.smtp_password_entry.config(show="" if self.smtp_secret_visible else "*")
+        self.smtp_reveal_button.config(text="Masquer le mot de passe" if self.smtp_secret_visible else "Afficher le mot de passe")
 
     def toggle_ai_key_visibility(self) -> None:
-        self.ai_key_entry.config(show="" if self.show_ai_key_var.get() else "*")
+        self.ai_secret_visible = not self.ai_secret_visible
+        self.ai_key_entry.config(show="" if self.ai_secret_visible else "*")
+        self.ai_reveal_button.config(text="Masquer la cle API" if self.ai_secret_visible else "Afficher la cle API")
+
+    def hide_secrets(self) -> None:
+        self.smtp_secret_visible = False
+        self.ai_secret_visible = False
+        if hasattr(self, "smtp_password_entry"):
+            self.smtp_password_entry.config(show="*")
+        if hasattr(self, "ai_key_entry"):
+            self.ai_key_entry.config(show="*")
+        if hasattr(self, "smtp_reveal_button"):
+            self.smtp_reveal_button.config(text="Afficher le mot de passe")
+        if hasattr(self, "ai_reveal_button"):
+            self.ai_reveal_button.config(text="Afficher la cle API")
+
+    def toggle_theme(self) -> None:
+        self.apply_theme("dark" if self.theme_name == "light" else "light")
+
+    def apply_theme(self, theme_name: str) -> None:
+        self.theme_name = theme_name if theme_name in THEMES else "light"
+        self.colors = THEMES[self.theme_name]
+        self.configure(bg=self.colors["bg"])
+        self.style.theme_use("clam")
+        self._configure_ttk_styles()
+        for widget in self.text_widgets:
+            self.style_text_widget(widget)
+        for widget in self.list_widgets:
+            self.style_list_widget(widget)
+        for tree in self.tree_widgets:
+            tree.tag_configure("normal", background=self.colors["field"], foreground=self.colors["text"])
+        if hasattr(self, "theme_button"):
+            self.theme_button.config(text="Mode clair" if self.theme_name == "dark" else "Mode sombre")
+        self.save_gui_settings()
+
+    def _configure_ttk_styles(self) -> None:
+        c = self.colors
+        self.style.configure(".", background=c["bg"], foreground=c["text"], fieldbackground=c["field"])
+        self.style.configure("TFrame", background=c["bg"])
+        self.style.configure("Top.TFrame", background=c["panel"])
+        self.style.configure("TLabel", background=c["bg"], foreground=c["text"])
+        self.style.configure("Title.TLabel", background=c["panel"], foreground=c["text"], font=("Segoe UI", 14, "bold"))
+        self.style.configure("Muted.TLabel", background=c["bg"], foreground=c["muted"])
+        self.style.configure("TopMuted.TLabel", background=c["panel"], foreground=c["muted"])
+        self.style.configure("TButton", background=c["button"], foreground=c["text"], bordercolor=c["border"], focusthickness=2, focuscolor=c["accent"])
+        self.style.map("TButton", background=[("active", c["button_active"])], foreground=[("active", c["text"])])
+        self.style.configure("TCheckbutton", background=c["bg"], foreground=c["text"])
+        self.style.map("TCheckbutton", background=[("active", c["bg"])], foreground=[("active", c["text"])])
+        self.style.configure("TEntry", fieldbackground=c["field"], foreground=c["text"], bordercolor=c["border"], insertcolor=c["text"])
+        self.style.configure("TCombobox", fieldbackground=c["field"], foreground=c["text"], background=c["button"], arrowcolor=c["text"], bordercolor=c["border"])
+        self.style.map("TCombobox", fieldbackground=[("readonly", c["field"])], foreground=[("readonly", c["text"])], selectbackground=[("readonly", c["selection"])])
+        self.style.configure("TNotebook", background=c["bg"], bordercolor=c["border"])
+        self.style.configure("TNotebook.Tab", background=c["button"], foreground=c["text"], padding=(12, 7))
+        self.style.map("TNotebook.Tab", background=[("selected", c["panel"]), ("active", c["button_active"])], foreground=[("selected", c["text"]), ("active", c["text"])])
+        self.style.configure("Treeview", background=c["field"], foreground=c["text"], fieldbackground=c["field"], bordercolor=c["border"], rowheight=26)
+        self.style.configure("Treeview.Heading", background=c["button"], foreground=c["text"], bordercolor=c["border"])
+        self.style.map("Treeview", background=[("selected", c["selection"])], foreground=[("selected", c["accent_text"] if self.theme_name == "dark" else c["text"])])
+
+    def style_text_widget(self, widget: tk.Text) -> None:
+        c = self.colors
+        widget.configure(
+            background=c["field"],
+            foreground=c["text"],
+            insertbackground=c["text"],
+            selectbackground=c["selection"],
+            selectforeground=c["accent_text"] if self.theme_name == "dark" else c["text"],
+            relief="solid",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=c["border"],
+            highlightcolor=c["accent"],
+        )
+        self._color_status_lines(widget)
+
+    def style_list_widget(self, widget: tk.Listbox) -> None:
+        c = self.colors
+        widget.configure(
+            background=c["field"],
+            foreground=c["text"],
+            selectbackground=c["selection"],
+            selectforeground=c["accent_text"] if self.theme_name == "dark" else c["text"],
+            relief="solid",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=c["border"],
+            highlightcolor=c["accent"],
+        )
+
+    def load_gui_settings(self) -> dict[str, str]:
+        if not self.gui_settings_path.exists():
+            return {}
+        try:
+            data = json.loads(self.gui_settings_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def save_gui_settings(self) -> None:
+        self.gui_settings_path.write_text(json.dumps({"theme": self.theme_name}, indent=2) + "\n", encoding="utf-8")
+
+    def _color_status_lines(self, widget: tk.Text) -> None:
+        c = self.colors
+        widget.tag_configure("status_ok", foreground=c["ok"])
+        widget.tag_configure("status_warning", foreground=c["warning"])
+        line_count = int(widget.index("end-1c").split(".", 1)[0])
+        for line_number in range(1, line_count + 1):
+            line_start = f"{line_number}.0"
+            line_end = f"{line_number}.end"
+            text = widget.get(line_start, line_end)
+            if text.startswith("[OK]"):
+                widget.tag_add("status_ok", line_start, line_end)
+            elif text.startswith("[A verifier]"):
+                widget.tag_add("status_warning", line_start, line_end)
 
     def _validate_env_form(self) -> bool:
         if self.smtp_port_var.get().strip() and not self.smtp_port_var.get().strip().isdigit():
