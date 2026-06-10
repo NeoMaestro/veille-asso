@@ -173,7 +173,7 @@
             <section class="category">
               <h2>{{ group.label }}</h2>
 
-              {% for item in group.items %}
+              {% for item in group["items"] %}
                 <article class="item">
                   <h3>
                     {% if item.link %}
