@@ -2,6 +2,7 @@
 .gui_settings.json
 .venv/
 venv/
+preview.html
 __pycache__/
 *.py[cod]
 .pytest_cache/

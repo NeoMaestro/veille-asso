@@ -3,8 +3,8 @@
 sources:
   - name: "Associations.gouv.fr"
     url: "https://www.associations.gouv.fr/spip.php?page=backend"
-    enabled: true
-    description: "Actualites institutionnelles utiles aux associations."
+    enabled: false
+    description: "Flux historique a verifier avant activation: peut retourner une erreur selon le site."
 
   - name: "INJEP"
     url: "https://injep.fr/feed/"
@@ -13,13 +13,13 @@ sources:
 
   - name: "Vie-publique.fr"
     url: "https://www.vie-publique.fr/rss.xml"
-    enabled: true
-    description: "Actualites publiques, lois, rapports et dossiers."
+    enabled: false
+    description: "Source utile mais a verifier avant activation: le flux peut ne retourner aucun element."
 
   - name: "Education.gouv.fr"
     url: "https://www.education.gouv.fr/rss.xml"
-    enabled: true
-    description: "Actualites du ministere de l'Education nationale."
+    enabled: false
+    description: "Source utile mais a verifier avant activation: certains acces RSS peuvent etre bloques."
 
   - name: "Exemple de source locale"
     url: "https://example.org/feed.xml"

@@ -15,6 +15,7 @@ import yaml
 
 from ai_providers import OPENAI_COMPATIBLE_DEFAULT_BASE_URLS, get_ai_provider_from_env
 from env_utils import build_secret_checklist, ensure_env_file, read_env_values, write_env_values
+from fetch_sources import fetch_source
 from send_mail import get_smtp_config, send_email
 
 
@@ -85,6 +86,7 @@ class VeilleGui(tk.Tk):
         self.categories_data = self._load_yaml(self.categories_path)
         self.settings_data = self._load_yaml(self.settings_path)
         self.env_values = read_env_values(self.env_path)
+        self.source_statuses: dict[int, str] = {}
         self.gui_settings = self.load_gui_settings()
         self.theme_name = self.gui_settings.get("theme", "light")
         if self.theme_name not in THEMES:
@@ -131,6 +133,7 @@ class VeilleGui(tk.Tk):
         self.smtp_tab = ttk.Frame(self.notebook, padding=12)
         self.ai_tab = ttk.Frame(self.notebook, padding=12)
         self.setup_tab = ttk.Frame(self.notebook, padding=12)
+        self.assistant_tab = ttk.Frame(self.notebook, padding=12)
         self.test_tab = ttk.Frame(self.notebook, padding=12)
 
         self.notebook.add(self.sources_tab, text="Sources")
@@ -140,6 +143,7 @@ class VeilleGui(tk.Tk):
         self.notebook.add(self.smtp_tab, text="SMTP & expediteur")
         self.notebook.add(self.ai_tab, text="IA optionnelle")
         self.notebook.add(self.setup_tab, text="Mise en route")
+        self.notebook.add(self.assistant_tab, text="Assistant")
         self.notebook.add(self.test_tab, text="Tester")
 
         self._build_sources_tab()
@@ -149,16 +153,18 @@ class VeilleGui(tk.Tk):
         self._build_smtp_tab()
         self._build_ai_tab()
         self._build_setup_tab()
+        self._build_assistant_tab()
         self._build_test_tab()
 
     def _build_sources_tab(self) -> None:
-        columns = ("enabled", "name", "url", "description")
+        columns = ("enabled", "status", "name", "url", "description")
         self.sources_tree = ttk.Treeview(self.sources_tab, columns=columns, show="headings", height=18)
         for column, label, width in (
             ("enabled", "Active", 70),
-            ("name", "Nom", 180),
-            ("url", "URL", 390),
-            ("description", "Description", 320),
+            ("status", "Dernier test", 150),
+            ("name", "Nom", 170),
+            ("url", "URL", 350),
+            ("description", "Description", 300),
         ):
             self.sources_tree.heading(column, text=label)
             self.sources_tree.column(column, width=width, anchor="center" if column == "enabled" else "w")
@@ -171,6 +177,7 @@ class VeilleGui(tk.Tk):
         ttk.Button(buttons, text="Ajouter", command=self.add_source).pack(side="left", padx=(0, 6))
         ttk.Button(buttons, text="Modifier", command=self.edit_source).pack(side="left", padx=6)
         ttk.Button(buttons, text="Activer / desactiver", command=self.toggle_source).pack(side="left", padx=6)
+        ttk.Button(buttons, text="Tester les sources", command=self.test_sources).pack(side="left", padx=6)
         ttk.Button(buttons, text="Supprimer", command=self.delete_source).pack(side="left", padx=6)
         ttk.Button(buttons, text="Enregistrer", command=self.save_sources).pack(side="right")
 
@@ -354,12 +361,29 @@ class VeilleGui(tk.Tk):
         buttons.pack(fill="x")
         ttk.Button(buttons, text="Copier la liste des secrets", command=self.copy_github_secrets).pack(side="left")
 
+    def _build_assistant_tab(self) -> None:
+        ttk.Label(
+            self.assistant_tab,
+            text="Parcours conseillé pour préparer une première mise en service.",
+            style="Title.TLabel",
+        ).pack(anchor="w", pady=(0, 10))
+        self.assistant_text = tk.Text(self.assistant_tab, height=22, wrap="word")
+        self.text_widgets.append(self.assistant_text)
+        self.assistant_text.pack(fill="both", expand=True, pady=(0, 10))
+        buttons = ttk.Frame(self.assistant_tab)
+        buttons.pack(fill="x")
+        ttk.Button(buttons, text="Rafraîchir l'assistant", command=self.refresh_assistant).pack(side="left", padx=(0, 6))
+        ttk.Button(buttons, text="Tester les sources", command=self.test_sources).pack(side="left", padx=6)
+        ttk.Button(buttons, text="Générer un aperçu du mail", command=self.generate_preview).pack(side="left", padx=6)
+        ttk.Button(buttons, text="Copier les secrets GitHub", command=self.copy_github_secrets).pack(side="left", padx=6)
+
     def _build_test_tab(self) -> None:
         ttk.Label(self.test_tab, text="Tests sans modification de data/seen_items.json.").pack(anchor="w")
         buttons = ttk.Frame(self.test_tab)
         buttons.pack(fill="x", pady=10)
         ttk.Button(buttons, text="Dry-run sans IA", command=lambda: self.run_dry_run(use_ai=False)).pack(side="left", padx=(0, 6))
         ttk.Button(buttons, text="Dry-run avec IA si configuree", command=lambda: self.run_dry_run(use_ai=True)).pack(side="left", padx=6)
+        ttk.Button(buttons, text="Générer preview.html", command=self.generate_preview).pack(side="left", padx=6)
         ttk.Button(buttons, text="Rafraichir les prerequis", command=self.refresh_test_prerequisites).pack(side="left", padx=6)
         self.test_prerequisites_label = ttk.Label(self.test_tab, text="", style="Muted.TLabel", wraplength=980)
         self.help_labels.append(self.test_prerequisites_label)
@@ -377,12 +401,28 @@ class VeilleGui(tk.Tk):
                 iid=str(index),
                 values=(
                     "Oui" if source.get("enabled", True) else "Non",
+                    self.source_statuses.get(index, "Non testé"),
                     source.get("name", ""),
                     source.get("url", ""),
                     source.get("description", ""),
                 ),
             )
         self.refresh_setup_status()
+
+    def test_sources(self) -> None:
+        sources = self.sources_data.get("sources", [])
+        for index, source in enumerate(sources):
+            if not source.get("enabled", True):
+                self.source_statuses[index] = "Désactivée"
+                continue
+            items = fetch_source(
+                source,
+                timeout_seconds=int(self.settings_data.get("sources", {}).get("timeout_seconds", 20)),
+                user_agent=str(self.settings_data.get("sources", {}).get("user_agent", "VeilleAssoJeunesse/1.0")),
+            )
+            self.source_statuses[index] = "OK - " + str(len(items)) + " élément(s)" if items else "Aucun élément ou erreur"
+        self.refresh_sources()
+        messagebox.showinfo("Test terminé", "Le test des sources est terminé. Consultez la colonne 'Dernier test'.")
 
     def add_source(self) -> None:
         source = SourceDialog(self, "Ajouter une source").result
@@ -702,6 +742,7 @@ class VeilleGui(tk.Tk):
         self.github_secrets_text.delete("1.0", tk.END)
         self.github_secrets_text.insert("1.0", build_secret_checklist(self.env_values))
         self.refresh_test_prerequisites()
+        self.refresh_assistant()
 
     def copy_github_secrets(self) -> None:
         text = self.github_secrets_text.get("1.0", tk.END).strip()
@@ -721,6 +762,49 @@ class VeilleGui(tk.Tk):
             missing.append("aucun destinataire")
         text = "Prerequis OK pour un dry-run." if not missing else "A verifier avant test : " + ", ".join(missing)
         self.test_prerequisites_label.config(text=text)
+
+    def refresh_assistant(self) -> None:
+        if not hasattr(self, "assistant_text"):
+            return
+        self.env_values = read_env_values(self.env_path)
+        active_sources = [source for source in self.sources_data.get("sources", []) if source.get("enabled", True)]
+        recipients = [recipient for recipient in self.recipients_data.get("recipients", []) if recipient.get("email")]
+        has_example_recipient = any("example." in str(recipient.get("email", "") if isinstance(recipient, dict) else recipient) for recipient in self.recipients_data.get("recipients", []))
+        smtp_ready = all(self.env_values.get(key) for key in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD", "MAIL_FROM"))
+        ai_ready = bool(self.env_values.get("AI_PROVIDER") and self.env_values.get("AI_API_KEY"))
+        lines = [
+            self._status_line(True, "Étape 1 - Python et dépendances: utilisez scripts/install.ps1 pour préparer le poste."),
+            self._status_line(bool(active_sources), f"Étape 2 - Sources: {len(active_sources)} source(s) active(s)."),
+            self._status_line(bool(recipients) and not has_example_recipient, "Étape 3 - Destinataire test: remplacez les adresses example.org avant un vrai envoi."),
+            self._status_line(smtp_ready, "Étape 4 - SMTP: renseignez et testez l'onglet SMTP & expéditeur."),
+            self._status_line(True, "Étape 5 - IA: optionnelle, laissez désactivée pour un premier essai."),
+            self._status_line(ai_ready, "Info IA: clé renseignée." if ai_ready else "Info IA: aucune clé IA renseignée, fonctionnement sans IA."),
+            self._status_line(True, "Étape 6 - Test: générez preview.html, lancez un dry-run, puis envoyez un mail test."),
+            "",
+            "Déploiement GitHub: recopiez les secrets listés dans l'onglet Mise en route, puis lancez le workflow manuellement.",
+        ]
+        self.assistant_text.delete("1.0", tk.END)
+        self.assistant_text.insert("1.0", "\n".join(lines))
+        self._color_status_lines(self.assistant_text)
+
+    def generate_preview(self) -> None:
+        self.test_output.delete("1.0", tk.END)
+        self.test_output.insert(tk.END, "Génération de preview.html...\n\n")
+        self.update_idletasks()
+        env = os.environ.copy()
+        env.update(read_env_values(self.env_path))
+        env["AI_PROVIDER"] = ""
+        env["AI_API_KEY"] = ""
+        command = [sys.executable, str(ROOT_DIR / "src" / "main.py"), "--dry-run", "--render-output", "preview.html"]
+        result = subprocess.run(command, cwd=ROOT_DIR, env=env, capture_output=True, text=True, check=False)
+        output = (result.stdout or "") + (result.stderr or "")
+        if hasattr(self, "test_output"):
+            self.test_output.delete("1.0", tk.END)
+            self.test_output.insert(tk.END, output or "Aucune sortie affichée.")
+        if result.returncode == 0:
+            messagebox.showinfo("Aperçu généré", "preview.html a été généré à la racine du projet.")
+        else:
+            messagebox.showerror("Erreur", "L'aperçu n'a pas pu être généré. Consultez le journal.")
 
     def run_dry_run(self, use_ai: bool) -> None:
         self.refresh_test_prerequisites()

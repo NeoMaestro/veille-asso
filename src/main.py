@@ -15,6 +15,7 @@ from fetch_sources import fetch_all_sources, load_sources
 from generate_digest import render_digest, sort_items_by_date
 from send_mail import get_smtp_config, load_recipients, send_email
 from storage import filter_new_items, load_seen_items, mark_items_seen, save_seen_items
+from validation import print_validation_result, validate_project
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -26,6 +27,11 @@ def main() -> int:
     load_dotenv(ROOT_DIR / ".env")
     settings = _load_yaml(ROOT_DIR / "config" / "settings.yml")
     _configure_logging(args.verbose)
+
+    if args.check_config:
+        result = validate_project(ROOT_DIR, require_smtp=not args.dry_run)
+        print_validation_result(result)
+        return 0 if result.ok else 1
 
     sources = load_sources(ROOT_DIR / "config" / "sources.yml")
     categories_config = load_categories(ROOT_DIR / "config" / "categories.yml")
@@ -56,7 +62,8 @@ def main() -> int:
     if items_to_send:
         items_to_send = enrich_items_with_ai_summaries(items_to_send, settings)
 
-    if items_to_send or send_empty_digest:
+    should_render = bool(items_to_send or send_empty_digest or args.render_output)
+    if should_render:
         subject, html_body = render_digest(
             items_to_send,
             settings,
@@ -64,6 +71,13 @@ def main() -> int:
             ROOT_DIR / "templates" / "email.html",
         )
         recipients = load_recipients(ROOT_DIR / "config" / "recipients.yml")
+
+        if args.render_output:
+            render_path = Path(args.render_output)
+            if not render_path.is_absolute():
+                render_path = ROOT_DIR / render_path
+            render_path.write_text(html_body, encoding="utf-8")
+            LOGGER.info("Aperçu HTML généré: %s", render_path)
 
         if args.dry_run:
             send_email(subject, html_body, recipients, {}, dry_run=True)
@@ -123,6 +137,8 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Veille automatique pour associations et ALSH.")
     parser.add_argument("--dry-run", action="store_true", help="Prepare la veille sans envoyer de mail ni modifier le suivi.")
     parser.add_argument("--verbose", action="store_true", help="Affiche plus de details dans les logs.")
+    parser.add_argument("--check-config", action="store_true", help="Verifie la configuration sans lancer la veille.")
+    parser.add_argument("--render-output", help="Genere un apercu HTML local du mail, par exemple preview.html.")
     return parser.parse_args()
 
 
